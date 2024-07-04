@@ -2,6 +2,7 @@
 # use this url to get the data of ISS
 # ( url : http://api.open-notify.org/iss-now.json)
 
+
 import requests
 import pandas as pd
 import time
@@ -12,37 +13,50 @@ url = "http://api.open-notify.org/iss-now.json"
 # List to store ISS location data
 data = []
 
+# Number of retries
+max_retries = 3
+
 # Collect 100 records of ISS location data
 for _ in range(100):
-    # Send a GET request to the API endpoint
-    response = requests.get(url)
+    success = False
+    retries = 0
     
-    # Check if the request was successful
-    if response.status_code == 200:
-        # Parse the JSON response
-        json_data = response.json()
-        
-        # Extract the latitude, longitude, and timestamp
-        latitude = json_data["iss_position"]["latitude"]
-        longitude = json_data["iss_position"]["longitude"]
-        timestamp = json_data["timestamp"]
-        
-        # Append the data to the list
-        data.append({
-            "timestamp": timestamp,
-            "latitude": latitude,
-            "longitude": longitude
-        })
-        
-        # Print a message indicating progress
-        print(f"Record {_+1}: Timestamp: {timestamp}, Latitude: {latitude}, Longitude: {longitude}")
+    while not success and retries < max_retries:
+        try:
+            # Send a GET request to the API endpoint
+            response = requests.get(url)
+            
+            # Check if the request was successful
+            response.raise_for_status()
+            
+            # Parse the JSON response
+            json_data = response.json()
+            
+            # Extract the latitude, longitude, and timestamp
+            latitude = json_data["iss_position"]["latitude"]
+            longitude = json_data["iss_position"]["longitude"]
+            timestamp = json_data["timestamp"]
+            
+            # Append the data to the list
+            data.append({
+                "timestamp": timestamp,
+                "latitude": latitude,
+                "longitude": longitude
+            })
+            
+            # Print a message indicating progress
+            print(f"Record {_+1}: Timestamp: {timestamp}, Latitude: {latitude}, Longitude: {longitude}")
+            
+            success = True  # Set success flag to True
+            
+        except requests.exceptions.RequestException as e:
+            retries += 1
+            print(f"Attempt {retries} failed: {e}")
+            time.sleep(1)  # Wait before retrying
     
-    else:
-        # Print an error message if the request was not successful
-        print(f"Failed to retrieve data: {response.status_code}")
-    
-    # Wait for a short interval before the next request to avoid overwhelming the API server
-    time.sleep(1)  # 1 second delay
+    if not success:
+        print(f"Failed to retrieve data after {max_retries} attempts. Exiting.")
+        break
 
 # Create a DataFrame from the collected data
 df = pd.DataFrame(data)
@@ -51,3 +65,4 @@ df = pd.DataFrame(data)
 df.to_csv("iss_location_data.csv", index=False)
 
 print("Data collection complete. The data has been written to 'iss_location_data.csv'.")
+
